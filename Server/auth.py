@@ -2,12 +2,18 @@ import time
 from pymongo import MongoClient
 from encryption import encrypt_email, hash_password, verify_password
 from directories import post_login
+import random
+import smtplib
+from email.mime.text import MIMEText
+from datetime import datetime, timedelta
 
 url = "mongodb+srv://barak:barak123@cluster0.qyjxf.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
 cluster = MongoClient(url)
 db = cluster["Project1"]
 collection = db["UsersInfo"]
+otp_storage = db["OTP"]
 
+otp_storage.create_index("created_at", expireAfterSeconds=300)
 
 def start_login(client_socket):
     """Handles the user login or signup process."""
@@ -72,9 +78,17 @@ def login(client_socket):
         user = collection.find_one({"Email": encrypted_email})
 
         if user and verify_password(password, user["Password"]):
-            print("Password verified successfully")  # Debug print
-            client_socket.send("Login successful.".encode('utf-8'))
-            post_login(client_socket, user["Username"])
+            otp = str(random.randint(100000, 999999))  # 6-digit OTP
+            store_otp(email, otp)
+            if send_otp_email(email, otp):
+                client_socket.send("Login successful. Enter OTP.".encode('utf-8'))
+                # Wait for OTP from client
+                client_otp = client_socket.recv(1024).decode('utf-8')
+                if verify_otp(email, client_otp):
+                    client_socket.send("2FA successful. Welcome!".encode('utf-8'))
+                    # Proceed with session
+                else:
+                    client_socket.send("Invalid OTP. Login failed.".encode('utf-8'))
         else:
             if not user:
                 print("No user found with this email")  # Debug print
@@ -84,6 +98,44 @@ def login(client_socket):
     except Exception as e:
         print(f"Login error: {e}")
         client_socket.send("An error occurred during login.".encode('utf-8'))
+
+
+def send_otp_email(email, otp):
+    sender_email = "hbrytrzwt@gmail.com"  # Replace with your email
+    sender_password = "amosi123"  # Replace with your app-specific password
+    subject = "Your 2FA OTP Code"
+    body = f"Your one-time password (OTP) is: {otp}\nThis code is valid for 5 minutes."
+    msg = MIMEText(body)
+    msg['Subject'] = subject
+    msg['From'] = sender_email
+    msg['To'] = email
+
+    try:
+        with smtplib.SMTP('smtp.gmail.com', 587) as server:
+            server.starttls()
+            server.login(sender_email, sender_password)
+            server.send_message(msg)
+        print(f"OTP sent to {email}")
+        return True
+    except Exception as e:
+        print(f"Failed to send OTP: {str(e)}")
+        return False
+
+def store_otp(email, otp):
+    # Store OTP in MongoDB with a creation timestamp
+    otp_storage.insert_one({
+        "email": email,
+        "otp": otp,
+        "created_at": datetime.utcnow()
+    })
+def verify_otp(email, client_otp):
+    # Find the latest OTP for the email
+    otp_doc = otp_storage.find_one({"email": email}, sort=[("created_at", -1)])
+    if otp_doc and otp_doc["otp"] == client_otp:
+        # OTP is valid; delete it to prevent reuse
+        otp_storage.delete_one({"_id": otp_doc["_id"]})
+        return True
+    return False
 
 
 
