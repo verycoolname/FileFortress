@@ -3,6 +3,7 @@ import threading
 from auth import start_login
 from config import DB_URL, DB_NAME
 
+
 def start():
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server_socket.bind(('0.0.0.0', 5959))

@@ -83,12 +83,15 @@ def login(client_socket):
             if send_otp_email(email, otp):
                 client_socket.send("Login successful. Enter OTP.".encode('utf-8'))
                 # Wait for OTP from client
-                client_otp = client_socket.recv(1024).decode('utf-8')
-                if verify_otp(email, client_otp):
-                    client_socket.send("2FA successful. Welcome!".encode('utf-8'))
-                    # Proceed with session
-                else:
-                    client_socket.send("Invalid OTP. Login failed.".encode('utf-8'))
+                for i in range(3):
+                    client_otp = client_socket.recv(1024).decode('utf-8')
+                    if verify_otp(email, client_otp):
+                        client_socket.send("2FA successful. Welcome!".encode('utf-8'))
+                        post_login(client_socket,collection.find_one({"Email": email})["Username"])
+                        break
+                        # Proceed with session
+                    else:
+                        client_socket.send("Invalid OTP. Login failed.".encode('utf-8'))
         else:
             if not user:
                 print("No user found with this email")  # Debug print
@@ -102,7 +105,7 @@ def login(client_socket):
 
 def send_otp_email(email, otp):
     sender_email = "hbrytrzwt@gmail.com"  # Replace with your email
-    sender_password = "amosi123"  # Replace with your app-specific password
+    sender_password = "mucm ajpe gkyt ktgg"  # Replace with your app-specific password
     subject = "Your 2FA OTP Code"
     body = f"Your one-time password (OTP) is: {otp}\nThis code is valid for 5 minutes."
     msg = MIMEText(body)

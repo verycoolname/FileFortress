@@ -20,11 +20,14 @@ def post_login(client_socket, username):
             handle_users(client_socket,username)
 
 
-
-
 def choose_dir(client_socket, username):
     list_directories(client_socket, username)
     selected_dir = client_socket.recv(1024).decode('utf-8')
+
+    # Add this check to handle cancellation
+    if selected_dir == "BACK_TO_MENU" or selected_dir == "CANCEL":
+        return  # Return to post_login loop
+
     directories = dircollection.find({"Users": username}, {"DirName": 1, "_id": 0})
     dirnames = [dir["DirName"] for dir in directories]
 
