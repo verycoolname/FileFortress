@@ -35,44 +35,80 @@ class FileGUI:
         file_path = filedialog.askopenfilename(title="Select a file to upload")
         if not file_path:
             return
+
         try:
             file_name = os.path.basename(file_path)
             file_size = os.path.getsize(file_path)
+
+            # Send file name and size
             self.client_socket.send(file_name.encode('utf-8'))
             self.client_socket.send(str(file_size).encode('utf-8'))
+
+            # Create progress window
+            progress = Toplevel()
+            progress.title("Uploading...")
+            progress.geometry("300x100")
+            Label(progress, text=f"Uploading {file_name}...").pack(pady=10)
+            progress_bar = ttk.Progressbar(progress, orient="horizontal", length=250, mode="determinate")
+            progress_bar.pack(pady=10)
+
+            # Open file and start upload
             with open(file_path, 'rb') as file:
                 bytes_sent = 0
                 while bytes_sent < file_size:
-                    chunk = file.read(1024)
+                    chunk = file.read(4096)
                     if not chunk:
                         break
                     self.client_socket.send(chunk)
                     bytes_sent += len(chunk)
+
+                    # Update progress bar
+                    progress_bar["value"] = (bytes_sent / file_size) * 100
+                    progress.update()
+
+            # Close progress window
+            progress.destroy()
+
+            # Wait for server response
             response = self.client_socket.recv(1024).decode('utf-8')
             messagebox.showinfo("Upload Status", response)
+
         except Exception as e:
+            # Ensure progress window is closed in case of error
+            if 'progress' in locals():
+                progress.destroy()
             messagebox.showerror("Upload Error", f"Failed to upload file: {str(e)}")
 
     def handle_download_file(self):
         from utils import create_selection_dialog
+        import tkinter as tk
+
         try:
             response = self.client_socket.recv(4096).decode('utf-8')
             files_dict = json.loads(response)
             if not files_dict:
                 messagebox.showinfo("Download", "No files available to download")
                 return
+
             file_options = list(files_dict.keys())
             selected_index = create_selection_dialog(file_options, "Select a file to download")
+
             if selected_index is None:
                 self.client_socket.send("CANCEL".encode('utf-8'))
                 return
+
             selected_file = file_options[selected_index]
             self.client_socket.send(selected_file.encode('utf-8'))
+
             save_path = filedialog.asksaveasfilename(title="Save file as", initialfile=selected_file)
+
             if not save_path:
                 self.client_socket.send("CANCEL_SAVE".encode('utf-8'))
                 return
+
             self.client_socket.send("READY_FOR_SIZE".encode('utf-8'))
+
+            # Receive file size
             size_data = b""
             while True:
                 byte = self.client_socket.recv(1)
@@ -80,31 +116,60 @@ class FileGUI:
                     break
                 size_data += byte
             file_size = int(size_data.decode('utf-8'))
+
+            # Acknowledge readiness for data
             self.client_socket.send("READY_FOR_DATA".encode('utf-8'))
-            progress = Toplevel()
-            progress.title("Downloading...")
-            progress.geometry("300x100")
-            Label(progress, text=f"Downloading {selected_file}...").pack(pady=10)
-            progress_bar = ttk.Progressbar(progress, orient="horizontal", length=250, mode="determinate")
+
+            # Create progress window with a different approach
+            progress_window = tk.Toplevel(self.frame)
+            progress_window.title("Downloading...")
+            progress_window.geometry("300x100")
+            progress_window.grab_set()  # Make the window modal
+
+            label = tk.Label(progress_window, text=f"Downloading {selected_file}...")
+            label.pack(pady=10)
+
+            progress_bar = ttk.Progressbar(progress_window, orient="horizontal", length=250, mode="determinate")
             progress_bar.pack(pady=10)
+
+            # Use a method to update progress that works with Tkinter's event loop
+            def update_progress(current, total):
+                percentage = int((current / total) * 100)
+                progress_bar['value'] = percentage
+                progress_window.update_idletasks()  # Force GUI update
+
+            # Download the file
             with open(save_path, 'wb') as file:
                 bytes_received = 0
                 while bytes_received < file_size:
                     chunk_size = min(4096, file_size - bytes_received)
                     chunk = self.client_socket.recv(chunk_size)
+
                     if not chunk:
                         break
+
                     file.write(chunk)
                     bytes_received += len(chunk)
-                    progress_bar["value"] = (bytes_received / file_size) * 100
-                    progress.update()
-            progress.destroy()
+
+                    # Update progress periodically to avoid overwhelming the GUI
+                    if bytes_received % 4096 == 0 or bytes_received >= file_size:
+                        update_progress(bytes_received, file_size)
+
+            # Close progress window
+            progress_window.destroy()
+
+            # Send download completion
             self.client_socket.send("DOWNLOAD_COMPLETE".encode('utf-8'))
+
+            # Receive confirmation
             confirmation = self.client_socket.recv(1024).decode('utf-8')
             messagebox.showinfo("Download Complete", confirmation)
-        except Exception as e:
-            messagebox.showerror("Download Error", f"Failed to download file: {str(e)}")
 
+        except Exception as e:
+            # Ensure progress window is closed in case of error
+            if 'progress_window' in locals():
+                progress_window.destroy()
+            messagebox.showerror("Download Error", f"Failed to download file: {str(e)}")
     def handle_delete_file(self):
         from utils import create_selection_dialog
         try:

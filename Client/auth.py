@@ -84,7 +84,7 @@ class AuthGUI:
             row=6, column=0, columnspan=2, pady=(15, 0))
 
         Button(self.frame, text="Back to Login", font=("Arial", 14),
-               bg="#6c757d", fg="white", bd=0, command=self.create_login_page).grid(
+               bg="#6c757d", fg="white", bd=0, command=lambda: [self.client_socket.send("return to login".encode('utf-8')), self.create_login_page()]).grid(
             row=7, column=0, columnspan=2, pady=(15, 0))
 
         Label(self.frame, text="The code will expire in 5 minutes.", font=("Arial", 12),

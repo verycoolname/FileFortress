@@ -84,14 +84,18 @@ def login(client_socket):
                 client_socket.send("Login successful. Enter OTP.".encode('utf-8'))
                 # Wait for OTP from client
                 for i in range(3):
+
                     client_otp = client_socket.recv(1024).decode('utf-8')
                     if verify_otp(email, client_otp):
                         client_socket.send("2FA successful. Welcome!".encode('utf-8'))
                         post_login(client_socket,collection.find_one({"Email": email})["Username"])
                         break
                         # Proceed with session
+                    elif("login" in client_otp):
+                        break
                     else:
                         client_socket.send("Invalid OTP. Login failed.".encode('utf-8'))
+
         else:
             if not user:
                 print("No user found with this email")  # Debug print

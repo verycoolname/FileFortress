@@ -48,7 +48,7 @@ def upload_file(client_socket, dirname, username):
         # Receive file data
         with open(temp_path, 'wb') as file:
             while bytes_received < file_size:
-                chunk = client_socket.recv(1024)
+                chunk = client_socket.recv(4096)
                 bytes_received += len(chunk)
                 file.write(chunk)
 
