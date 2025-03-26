@@ -26,7 +26,6 @@ def start_login(client_socket):
         elif cmd1 == "2":  # Log in
             login(client_socket)
 
-
 def signup(client_socket):
     # Enter Username
     username = client_socket.recv(1024).decode('utf-8').lower()

@@ -7,10 +7,27 @@ db = cluster["Project1"]
 files_collection = db["UserFiles.files"]
 dircollection = db["DirNames"]
 
+
 def list_directories(client_socket, username):
-    directories = dircollection.find({"Users": username}, {"DirName": 1, "_id": 0})
-    dirnames = [dir["DirName"] for dir in directories]
-    client_socket.sendall(json.dumps(dirnames).encode('utf-8'))
+    try:
+        directories = list(dircollection.find({"Users": username}, {"DirName": 1, "_id": 0}))
+        dirnames = [dir["DirName"] for dir in directories]
+
+        # Check for empty list
+        if not dirnames:
+            dirnames = ["No directories available"]
+
+        # Use json.dumps to ensure proper encoding
+        dir_json = json.dumps(dirnames)
+
+        # Ensure complete transmission
+        encoded_data = dir_json.encode('utf-8')
+        client_socket.sendall(encoded_data)
+
+    except Exception as e:
+        print(f"Error listing directories for {username}: {e}")
+        error_message = json.dumps(["Error fetching directories"])
+        client_socket.sendall(error_message.encode('utf-8'))
 def check_if_exists(name):
     possible_dir = dircollection.find_one({"DirName": name})
     return possible_dir is not None

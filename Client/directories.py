@@ -62,18 +62,33 @@ class DirectoryGUI:
         if not selection:
             self.dir_output_label.config(text="Please select a directory", fg="red")
             return
+
         selected_dir = self.dir_listbox.get(selection[0])
         try:
+            # Send a specific command to indicate directory selection
+            self.client_socket.send("SELECT_DIR".encode('utf-8'))
+            time.sleep(0.1)  # Small delay to ensure server is ready
+
+            # Send the selected directory name
             self.client_socket.send(selected_dir.encode('utf-8'))
+
+            # Receive the response
             response = self.client_socket.recv(1024).decode('utf-8')
-            self.dir_output_label.config(text=response, fg="green" if "successfully" in response.lower() else "red")
-            if "successfully" in response.lower():
-                self.frame.after(1500, lambda: FileGUI(self.frame, self.client_socket, self.create_main_menu).create_directory_operations_page(selected_dir))
+            print(f"DEBUG: Received response: {response}")  # Debug print
+
+            # Adjust condition to check for success
+            if "successfully" in response.lower() or "entered" in response.lower():
+                self.dir_output_label.config(text="Directory selected successfully", fg="green")
+                self.frame.after(1500, lambda: FileGUI(self.frame, self.client_socket,
+                                                       self.create_main_menu).create_directory_operations_page(
+                    selected_dir))
             else:
-                # Send a proper command to reset server state
+                self.dir_output_label.config(text=response, fg="red")
+                # Send a reset command
                 self.client_socket.send("4".encode('utf-8'))
-                time.sleep(0.1)  # Wait a moment for the server to process
+                time.sleep(0.1)
                 self.frame.after(1600, self.create_main_menu)
+
         except Exception as e:
             self.dir_output_label.config(text=f"Error: {str(e)}", fg="red")
             try:
