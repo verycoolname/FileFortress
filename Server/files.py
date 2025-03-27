@@ -32,23 +32,25 @@ def handle_dirs(client_socket, dirname, username, dirowner):
 
 
 def upload_file(client_socket, dirname, username):
-    """
-    Server-side file upload handler with basic error handling.
-    """
     try:
-        # Receive filename
+        # Receive filename (UTF-8 encoded)
         file_name = client_socket.recv(1024).decode('utf-8').strip()
-        file_size = int(client_socket.recv(1024).decode())
+        # Receive file size (UTF-8 encoded string, convert to int)
+        file_size = int(client_socket.recv(1024).decode('utf-8'))
+
+        # Send "READY" signal to client
+        client_socket.send("READY".encode('utf-8'))
 
         file_name = get_unique_filename(file_name)
         bytes_received = 0
 
         # Create temporary file
         temp_path = Path(f"temp_{username}_{int(time.time())}")
-        # Receive file data
         with open(temp_path, 'wb') as file:
             while bytes_received < file_size:
-                chunk = client_socket.recv(4096)
+                chunk = client_socket.recv(min(4096, file_size - bytes_received))
+                if not chunk:
+                    raise ConnectionError("Connection closed during upload")
                 bytes_received += len(chunk)
                 file.write(chunk)
 
@@ -60,15 +62,10 @@ def upload_file(client_socket, dirname, username):
                    Uploader=username,
                    DirName=dirname)
 
-
-        # Cleanup
         temp_path.unlink()
         client_socket.send("File was uploaded successfully".encode("utf-8"))
-        return
     except Exception as e:
-        client_socket.send(f"The was an error while uploading the file: {e}".encode("utf-8"))
-        return
-
+        client_socket.send(f"There was an error while uploading the file: {e}".encode("utf-8"))
 
 
 

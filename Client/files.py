@@ -40,9 +40,14 @@ class FileGUI:
             file_name = os.path.basename(file_path)
             file_size = os.path.getsize(file_path)
 
-            # Send file name and size
+            # Send filename and size as UTF-8 encoded strings
             self.client_socket.send(file_name.encode('utf-8'))
             self.client_socket.send(str(file_size).encode('utf-8'))
+
+            # Wait for server's "READY" signal
+            ready_signal = self.client_socket.recv(1024).decode('utf-8')
+            if ready_signal != "READY":
+                raise ConnectionError("Server not ready for file data")
 
             # Create progress window
             progress = Toplevel()

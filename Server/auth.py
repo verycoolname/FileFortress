@@ -27,22 +27,19 @@ def start_login(client_socket):
             login(client_socket)
 
 def signup(client_socket):
-    # Enter Username
-    username = client_socket.recv(1024).decode('utf-8').lower()
-    time.sleep(0.1)
-    # Enter Email
-    email = client_socket.recv(1024).decode('utf-8').lower()
-    time.sleep(0.1)
-    # Enter Password
-    password = client_socket.recv(1024).decode('utf-8').lower()
-    time.sleep(0.1)
-    encrypted_email = encrypt_email(email)
-    hashed_password = hash_password(password)
-
-    data1 = {"Username": username, "Email": encrypted_email, "Password": hashed_password}
-    print(f"Signup attempt with data: {data1}")
     try:
-        # Check if email or username already exists
+        username = client_socket.recv(1024).decode('utf-8').lower()
+        time.sleep(0.1)
+        email = client_socket.recv(1024).decode('utf-8').lower()
+        time.sleep(0.1)
+        password = client_socket.recv(1024).decode('utf-8').lower()
+        time.sleep(0.1)
+        encrypted_email = encrypt_email(email)
+        hashed_password = hash_password(password)
+
+        data1 = {"Username": username, "Email": encrypted_email, "Password": hashed_password}
+        print(f"Signup attempt with data: {data1}")
+
         possible_email = collection.find_one({"Email": encrypted_email})
         possible_username = collection.find_one({"Username": username})
 
@@ -56,50 +53,47 @@ def signup(client_socket):
             collection.insert_one(data1)
             print(f"Successfully inserted user: {username}")
             client_socket.send("Signup successful!".encode('utf-8'))
+    except ConnectionResetError:
+        print("Client connection was reset during signup")
     except Exception as e:
         print(f"Error during signup: {e}")
         client_socket.send("Error during signup.".encode('utf-8'))
 
 
 def login(client_socket):
-    # Enter Email
     email = client_socket.recv(1024).decode('utf-8').lower()
     print(email)
-    # Enter password
     password = client_socket.recv(1024).decode('utf-8').lower()
     print(password)
 
     try:
         encrypted_email = encrypt_email(email)
-        # Check for valid login credentials
         print(f"Attempting login with email: {email}")
         print(f"Encrypted email being searched: {encrypted_email}")
         user = collection.find_one({"Email": encrypted_email})
 
-        if user and verify_password(password, user["Password"]):
-            otp = str(random.randint(100000, 999999))  # 6-digit OTP
+        if user is None:
+            print("No user found with this email")
+            client_socket.send("Invalid email or password.".encode('utf-8'))
+            return
+
+        if verify_password(password, user["Password"]):
+            otp = str(random.randint(100000, 999999))
             store_otp(email, otp)
             if send_otp_email(email, otp):
                 client_socket.send("Login successful. Enter OTP.".encode('utf-8'))
-                # Wait for OTP from client
                 for i in range(3):
-
                     client_otp = client_socket.recv(1024).decode('utf-8')
                     if verify_otp(email, client_otp):
                         client_socket.send("2FA successful. Welcome!".encode('utf-8'))
-                        post_login(client_socket,collection.find_one({"Email": email})["Username"])
+                        post_login(client_socket, user["Username"])
                         break
-                        # Proceed with session
-                    elif("login" in client_otp):
+                    elif "login" in client_otp:
                         break
                     else:
                         client_socket.send("Invalid OTP. Login failed.".encode('utf-8'))
-
         else:
-            if not user:
-                print("No user found with this email")  # Debug print
-            else:
-                print("Password verification failed")  # Debug print
+            print("Password verification failed")
             client_socket.send("Invalid email or password.".encode('utf-8'))
     except Exception as e:
         print(f"Login error: {e}")

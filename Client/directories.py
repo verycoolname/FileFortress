@@ -2,6 +2,7 @@ import tkinter as tk
 from tkinter import Label, Entry, Button, Listbox, Scrollbar, messagebox
 import json
 import time
+import socket
 
 class DirectoryGUI:
     def __init__(self, frame, client_socket, create_main_menu_callback):
