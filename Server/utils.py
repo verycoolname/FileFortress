@@ -10,24 +10,25 @@ dircollection = db["DirNames"]
 
 def list_directories(client_socket, username):
     try:
+        # Find directories for the user
         directories = list(dircollection.find({"Users": username}, {"DirName": 1, "_id": 0}))
         dirnames = [dir["DirName"] for dir in directories]
 
-        # Check for empty list
+        # Ensure something is always returned
         if not dirnames:
             dirnames = ["No directories available"]
 
-        # Use json.dumps to ensure proper encoding
+        # Safe JSON conversion
         dir_json = json.dumps(dirnames)
 
         # Ensure complete transmission
-        encoded_data = dir_json.encode('utf-8')
-        client_socket.sendall(encoded_data)
+        client_socket.sendall(dir_json.encode('utf-8'))
 
     except Exception as e:
         print(f"Error listing directories for {username}: {e}")
-        error_message = json.dumps(["Error fetching directories"])
+        error_message = json.dumps(["No directories available"])
         client_socket.sendall(error_message.encode('utf-8'))
+
 def check_if_exists(name):
     possible_dir = dircollection.find_one({"DirName": name})
     return possible_dir is not None

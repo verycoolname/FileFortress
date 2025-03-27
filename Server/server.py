@@ -21,7 +21,7 @@ def handle_client(client_socket, addr):
             pass
 
 
-def start_server(host='0.0.0.0', port=5959):
+def start_server(host='0.0.0.0', port=8989):
     """
     Start the server with improved error handling and client management.
     """
