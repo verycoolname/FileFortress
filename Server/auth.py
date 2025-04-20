@@ -86,6 +86,14 @@ def login(client_socket):
                     client_otp = client_socket.recv(1024).decode('utf-8')
                     if verify_otp(email, client_otp):
                         client_socket.send("2FA successful. Welcome!".encode('utf-8'))
+                        # Handle subsequent commands, including GET_USERNAME
+                        while True:
+                            cmd = client_socket.recv(1024).decode('utf-8')
+                            if cmd == "GET_USERNAME":
+                                client_socket.send(user["Username"].encode('utf-8'))
+                                break
+                            elif "login" in cmd:
+                                return
                         post_login(client_socket, user["Username"])
                         break
                     elif "login" in client_otp:
@@ -98,7 +106,6 @@ def login(client_socket):
     except Exception as e:
         print(f"Login error: {e}")
         client_socket.send("An error occurred during login.".encode('utf-8'))
-
 
 def send_otp_email(email, otp):
     sender_email = "hbrytrzwt@gmail.com"  # Replace with your email

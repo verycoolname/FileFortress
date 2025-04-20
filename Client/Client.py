@@ -5,13 +5,13 @@ import socket
 from config import SERVER_HOST, SERVER_PORT
 from auth import AuthGUI
 from directories import DirectoryGUI
-
 class FileShareClient:
     def __init__(self):
         self.root = tk.Tk()
         self.root.title("File Sharing System")
         self.root.geometry("800x450")
         self.root.configure(bg="white")
+        self.username = None  # Add username attribute
         self.client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         try:
             self.client_socket.connect((SERVER_HOST, SERVER_PORT))
@@ -26,13 +26,20 @@ class FileShareClient:
         self.directory_gui = DirectoryGUI(self.frame, self.client_socket, self.create_main_menu)
         self.auth_gui.create_login_page()
 
-    def create_main_menu(self):
+    def create_main_menu(self, username=None):
+        if username:
+            self.username = username  # Store the username
+            print(f"Username set to: {self.username}")
         for widget in self.frame.winfo_children():
             widget.destroy()
-        tk.Label(self.frame, text="File Sharing System", font=("Arial", 24, "bold"), bg="white").grid(row=0, column=0, columnspan=2, pady=(0, 30))
-        tk.Button(self.frame, text="Choose Directory", font=("Arial", 16, "bold"), bg="#007bff", fg="white", width=40, height=2, bd=0, command=lambda: self.handle_main_menu("1")).grid(row=1, column=0, columnspan=2, pady=(15, 0))
-        tk.Button(self.frame, text="Create Directory", font=("Arial", 16, "bold"), bg="#17a2b8", fg="white", width=40, height=2, bd=0, command=self.directory_gui.create_directory_page).grid(row=2, column=0, columnspan=2, pady=(15, 0))
-        tk.Button(self.frame, text="Manage Users", font=("Arial", 16, "bold"), bg="#6610f2", fg="white", width=40, height=2, bd=0, command=self.directory_gui.create_user_management_page).grid(row=3, column=0, columnspan=2, pady=(15, 0))
+        # Add Welcome label at top left
+        welcome_label = tk.Label(self.frame, text=f"Welcome {self.username}!", font=("Arial", 16, "bold"), bg="white")
+        welcome_label.grid(row=0, column=0, sticky="nw", padx=10, pady=(0, 10))
+        # Main title
+        tk.Label(self.frame, text="File Sharing System", font=("Arial", 24, "bold"), bg="white").grid(row=1, column=0, columnspan=2, pady=(0, 30))
+        tk.Button(self.frame, text="Choose Directory", font=("Arial", 16, "bold"), bg="#007bff", fg="white", width=40, height=2, bd=0, command=lambda: self.handle_main_menu("1")).grid(row=2, column=0, columnspan=2, pady=(15, 0))
+        tk.Button(self.frame, text="Create Directory", font=("Arial", 16, "bold"), bg="#17a2b8", fg="white", width=40, height=2, bd=0, command=self.directory_gui.create_directory_page).grid(row=3, column=0, columnspan=2, pady=(15, 0))
+        tk.Button(self.frame, text="Manage Users", font=("Arial", 16, "bold"), bg="#6610f2", fg="white", width=40, height=2, bd=0, command=self.directory_gui.create_user_management_page).grid(row=4, column=0, columnspan=2, pady=(15, 0))
 
     def handle_main_menu(self, cmd):
         if cmd == "1":

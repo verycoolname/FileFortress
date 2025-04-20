@@ -107,9 +107,13 @@ class AuthGUI:
             response = self.client_socket.recv(1024).decode('utf-8')
 
             if "2FA successful" in response:
+                self.client_socket.send("GET_USERNAME".encode('utf-8'))
+                print("sending getg username")
+                username = self.client_socket.recv(1024).decode('utf-8')
+                print(username)
                 self.status_label.config(text="Verification successful!", fg="green")
                 # Wait a moment before proceeding to main app
-                self.frame.after(1500, self.create_main_menu)
+                self.frame.after(1500, lambda: self.create_main_menu(username))
             else:
                 self.attempts_remaining -= 1
                 if self.attempts_remaining > 0:

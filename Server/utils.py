@@ -4,6 +4,7 @@ import json
 url = "mongodb+srv://barak:barak123@cluster0.qyjxf.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
 cluster = MongoClient(url)
 db = cluster["Project1"]
+usercollection = db["UsersInfo"]
 files_collection = db["UserFiles.files"]
 dircollection = db["DirNames"]
 
