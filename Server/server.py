@@ -1,6 +1,5 @@
 import socket
 import threading
-import traceback
 from auth import start_login
 
 
@@ -13,7 +12,6 @@ def handle_client(client_socket, addr):
         start_login(client_socket)
     except Exception as e:
         print(f"Error handling client {addr}: {e}")
-        print(traceback.format_exc())
     finally:
         try:
             client_socket.close()

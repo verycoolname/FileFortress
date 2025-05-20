@@ -134,7 +134,7 @@ def download_file(client_socket, username,dirname):
         # Send decrypted file data
         total_sent = 0
         while total_sent < file_size:
-            chunk_size = min(1024, file_size - total_sent)
+            chunk_size = min(4096, file_size - total_sent)
             chunk = decrypted_data[total_sent:total_sent + chunk_size]
             bytes_sent = client_socket.send(chunk)
 

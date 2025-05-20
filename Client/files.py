@@ -87,14 +87,17 @@ class FileGUI:
     def handle_download_file(self):
         from utils import create_selection_dialog
         import tkinter as tk
+        import time
 
         try:
+            # Get list of available files
             response = self.client_socket.recv(4096).decode('utf-8')
             files_dict = json.loads(response)
             if not files_dict:
                 messagebox.showinfo("Download", "No files available to download")
                 return
 
+            # Let user select a file
             file_options = list(files_dict.keys())
             selected_index = create_selection_dialog(file_options, "Select a file to download")
 
@@ -105,12 +108,14 @@ class FileGUI:
             selected_file = file_options[selected_index]
             self.client_socket.send(selected_file.encode('utf-8'))
 
+            # Get save location
             save_path = filedialog.asksaveasfilename(title="Save file as", initialfile=selected_file)
 
             if not save_path:
                 self.client_socket.send("CANCEL_SAVE".encode('utf-8'))
                 return
 
+            # Tell server we're ready to receive the file size
             self.client_socket.send("READY_FOR_SIZE".encode('utf-8'))
 
             # Receive file size
@@ -122,14 +127,22 @@ class FileGUI:
                 size_data += byte
             file_size = int(size_data.decode('utf-8'))
 
-            # Acknowledge readiness for data
+            # Tell server we're ready for the file data
             self.client_socket.send("READY_FOR_DATA".encode('utf-8'))
 
-            # Create progress window with a different approach
+            # Create progress window before starting download
             progress_window = tk.Toplevel(self.frame)
             progress_window.title("Downloading...")
             progress_window.geometry("300x100")
-            progress_window.grab_set()  # Make the window modal
+            progress_window.protocol("WM_DELETE_WINDOW", lambda: None)  # Prevent closing
+
+            # Center window
+            progress_window.update_idletasks()
+            width = progress_window.winfo_width()
+            height = progress_window.winfo_height()
+            x = (progress_window.winfo_screenwidth() // 2) - (width // 2)
+            y = (progress_window.winfo_screenheight() // 2) - (height // 2)
+            progress_window.geometry('{}x{}+{}+{}'.format(width, height, x, y))
 
             label = tk.Label(progress_window, text=f"Downloading {selected_file}...")
             label.pack(pady=10)
@@ -137,28 +150,74 @@ class FileGUI:
             progress_bar = ttk.Progressbar(progress_window, orient="horizontal", length=250, mode="determinate")
             progress_bar.pack(pady=10)
 
-            # Use a method to update progress that works with Tkinter's event loop
-            def update_progress(current, total):
-                percentage = int((current / total) * 100)
-                progress_bar['value'] = percentage
-                progress_window.update_idletasks()  # Force GUI update
+            # Make sure GUI is ready before we start
+            for _ in range(5):  # Update multiple times to ensure display
+                self.frame.update_idletasks()
+                progress_window.update_idletasks()
+                time.sleep(0.05)
 
-            # Download the file
-            with open(save_path, 'wb') as file:
-                bytes_received = 0
-                while bytes_received < file_size:
-                    chunk_size = min(4096, file_size - bytes_received)
-                    chunk = self.client_socket.recv(chunk_size)
+            try:
+                # Open file for writing
+                with open(save_path, 'wb') as file:
+                    bytes_received = 0
+                    last_update_time = time.time()
 
-                    if not chunk:
-                        break
+                    # Set socket to non-blocking for smoother UI updates
+                    self.client_socket.settimeout(0.1)
 
-                    file.write(chunk)
-                    bytes_received += len(chunk)
+                    # Download the file in chunks
+                    while bytes_received < file_size:
+                        try:
+                            # Calculate next chunk size
+                            remaining = file_size - bytes_received
+                            chunk_size = min(8192, remaining)
 
-                    # Update progress periodically to avoid overwhelming the GUI
-                    if bytes_received % 4096 == 0 or bytes_received >= file_size:
-                        update_progress(bytes_received, file_size)
+                            # Receive chunk
+                            chunk = self.client_socket.recv(chunk_size)
+
+                            if not chunk:
+                                # If no data received but we expect more, wait briefly and retry
+                                if bytes_received < file_size:
+                                    time.sleep(0.01)
+                                    continue
+                                break
+
+                            # Write chunk to file
+                            file.write(chunk)
+                            bytes_received += len(chunk)
+
+                            # Only update UI every 100ms to avoid overwhelming it
+                            current_time = time.time()
+                            if current_time - last_update_time >= 0.1 or bytes_received >= file_size:
+                                # Calculate percentage with special handling for completion
+                                if bytes_received >= file_size:
+                                    percentage = 100
+                                else:
+                                    percentage = int((bytes_received / file_size) * 100)
+
+                                # Update progress bar
+                                progress_bar["value"] = percentage
+                                label.config(text=f"Downloading {selected_file}... {percentage}%")
+
+                                # Force GUI update
+                                progress_window.update()
+                                last_update_time = current_time
+
+                        except socket.timeout:
+                            # Socket timeout - this is expected with non-blocking sockets
+                            # Just update the UI and continue
+                            progress_window.update()
+                            continue
+
+                    # Make sure we show 100% before closing
+                    progress_bar["value"] = 100
+                    label.config(text=f"Downloading {selected_file}... 100%")
+                    progress_window.update()
+                    time.sleep(0.5)  # Give user time to see 100%
+
+            finally:
+                # Restore socket to blocking mode
+                self.client_socket.settimeout(None)
 
             # Close progress window
             progress_window.destroy()
@@ -171,10 +230,7 @@ class FileGUI:
             messagebox.showinfo("Download Complete", confirmation)
 
         except Exception as e:
-            # Ensure progress window is closed in case of error
-            if 'progress_window' in locals():
-                progress_window.destroy()
-            messagebox.showerror("Download Error", f"Failed to download file: {str(e)}")
+            messagebox.showerror("Download Error", f"Failed")
     def handle_delete_file(self):
         from utils import create_selection_dialog
         try:

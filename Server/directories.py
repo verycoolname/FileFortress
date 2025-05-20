@@ -1,7 +1,7 @@
 from pymongo import MongoClient
 from utils import check_if_exists, list_directories
 import json
-import traceback
+
 import inspect
 
 url = "mongodb+srv://barak:barak123@cluster0.qyjxf.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
@@ -40,7 +40,6 @@ def post_login(client_socket, username):
 
     except Exception as e:
         print(f"Error in post_login for {username}: {e}")
-        print(traceback.format_exc())
     finally:
         print(f"DEBUG (Line {inspect.currentframe().f_lineno}): Closing client socket")
         client_socket.close()
@@ -78,7 +77,6 @@ def choose_dir(client_socket, username):
 
     except Exception as e:
         print(f"Error in choose_dir: {e}")
-        print(traceback.format_exc())
         print(f"DEBUG (Line {inspect.currentframe().f_lineno}): Sending 'Error selecting directory' to client")
         client_socket.send("Error selecting directory".encode('utf-8'))
 
@@ -120,7 +118,6 @@ def handle_users(client_socket, username):
 
     except Exception as e:
         print(f"Error in handle_users: {e}")
-        print(traceback.format_exc())
         print(f"DEBUG (Line {inspect.currentframe().f_lineno}): Sending 'Error processing user management' to client")
         client_socket.send("Error processing user management".encode('utf-8'))
 
