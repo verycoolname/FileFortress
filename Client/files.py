@@ -88,6 +88,7 @@ class FileGUI:
         from utils import create_selection_dialog
         import tkinter as tk
         import time
+        import socket
 
         try:
             # Get list of available files
@@ -133,7 +134,7 @@ class FileGUI:
             # Create progress window before starting download
             progress_window = tk.Toplevel(self.frame)
             progress_window.title("Downloading...")
-            progress_window.geometry("300x100")
+            progress_window.geometry("300x120")
             progress_window.protocol("WM_DELETE_WINDOW", lambda: None)  # Prevent closing
 
             # Center window
@@ -150,74 +151,72 @@ class FileGUI:
             progress_bar = ttk.Progressbar(progress_window, orient="horizontal", length=250, mode="determinate")
             progress_bar.pack(pady=10)
 
-            # Make sure GUI is ready before we start
-            for _ in range(5):  # Update multiple times to ensure display
-                self.frame.update_idletasks()
-                progress_window.update_idletasks()
-                time.sleep(0.05)
+            # Add percentage label
+            percentage_label = tk.Label(progress_window, text="0%")
+            percentage_label.pack()
+
+            # Force initial display
+            progress_window.update()
 
             try:
+                # Keep socket in blocking mode but use larger buffer
                 # Open file for writing
                 with open(save_path, 'wb') as file:
                     bytes_received = 0
                     last_update_time = time.time()
-
-                    # Set socket to non-blocking for smoother UI updates
-                    self.client_socket.settimeout(0.1)
+                    update_interval = 0.05  # Update every 50ms for smoother progress
 
                     # Download the file in chunks
                     while bytes_received < file_size:
-                        try:
-                            # Calculate next chunk size
-                            remaining = file_size - bytes_received
-                            chunk_size = min(8192, remaining)
+                        # Calculate next chunk size - use larger chunks for better performance
+                        remaining = file_size - bytes_received
+                        chunk_size = min(32768, remaining)  # Increased from 8192 to 32768
 
+                        try:
                             # Receive chunk
                             chunk = self.client_socket.recv(chunk_size)
 
                             if not chunk:
-                                # If no data received but we expect more, wait briefly and retry
-                                if bytes_received < file_size:
-                                    time.sleep(0.01)
-                                    continue
                                 break
 
                             # Write chunk to file
                             file.write(chunk)
                             bytes_received += len(chunk)
 
-                            # Only update UI every 100ms to avoid overwhelming it
+                            # Update UI more frequently for smoother progress
                             current_time = time.time()
-                            if current_time - last_update_time >= 0.1 or bytes_received >= file_size:
-                                # Calculate percentage with special handling for completion
-                                if bytes_received >= file_size:
-                                    percentage = 100
-                                else:
-                                    percentage = int((bytes_received / file_size) * 100)
+                            if current_time - last_update_time >= update_interval or bytes_received >= file_size:
+                                # Calculate percentage
+                                percentage = min(100, int((bytes_received / file_size) * 100))
 
-                                # Update progress bar
+                                # Update progress bar and labels
                                 progress_bar["value"] = percentage
-                                label.config(text=f"Downloading {selected_file}... {percentage}%")
+                                label.config(text=f"Downloading {selected_file}...")
+                                percentage_label.config(
+                                    text=f"{percentage}% ({bytes_received:,} / {file_size:,} bytes)")
 
                                 # Force GUI update
-                                progress_window.update()
+                                progress_window.update_idletasks()
                                 last_update_time = current_time
 
-                        except socket.timeout:
-                            # Socket timeout - this is expected with non-blocking sockets
-                            # Just update the UI and continue
-                            progress_window.update()
-                            continue
+                        except socket.error as e:
+                            print(f"Socket error during download: {e}")
+                            messagebox.showerror("Download Error", f"Connection error: {e}")
+                            progress_window.destroy()
+                            return
 
-                    # Make sure we show 100% before closing
+                    # Ensure we show 100% completion
                     progress_bar["value"] = 100
-                    label.config(text=f"Downloading {selected_file}... 100%")
+                    percentage_label.config(text=f"100% ({file_size:,} / {file_size:,} bytes)")
+                    label.config(text=f"Download complete!")
                     progress_window.update()
-                    time.sleep(0.5)  # Give user time to see 100%
+                    time.sleep(0.5)  # Give user time to see completion
 
-            finally:
-                # Restore socket to blocking mode
-                self.client_socket.settimeout(None)
+            except Exception as e:
+                print(f"Error during file download: {e}")
+                messagebox.showerror("Download Error", f"Failed to download file: {e}")
+                progress_window.destroy()
+                return
 
             # Close progress window
             progress_window.destroy()
@@ -230,7 +229,9 @@ class FileGUI:
             messagebox.showinfo("Download Complete", confirmation)
 
         except Exception as e:
-            messagebox.showerror("Download Error", f"Failed")
+            if 'progress_window' in locals():
+                progress_window.destroy()
+            messagebox.showerror("Download Error", f"Failed to download file: {str(e)}")
     def handle_delete_file(self):
         from utils import create_selection_dialog
         try:
